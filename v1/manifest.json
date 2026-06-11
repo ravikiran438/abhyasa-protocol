@@ -1,0 +1,108 @@
+{
+  "manifest_version": "1.0.0",
+  "extension": {
+    "uri": "https://ravikiran438.github.io/abhyasa-protocol/v1",
+    "name": "Abhyasa Custody Transfer",
+    "description": "Deliver-or-report custody transfer of governance obligations over unreliable agent channels. Carries admissible obligations under custody (AB-1..AB-4) so each is applied, declined, or escalated — never silently lost.",
+    "version": "1.0.0",
+    "publisher": "Ravi Kiran Kadaboina",
+    "human_readable_spec": "https://doi.org/10.5281/zenodo.abhyasa-v1"
+  },
+  "agent_card_payload_schema": {
+    "$defs": {
+      "KindProfile": {
+        "description": "Per-kind custody delivery profile inside an :class:`AbhyasaServiceRef`.\n\nCustody is a cross-cutting concern, so the delivery profile is declared once\nper governance *kind* an agent carries under custody — not duplicated into\neach domain protocol's own AgentCard block. Each kind tunes its own\ndeadline (e.g. a Phala corrective update at 24 h, an Anumati consent at 1 h).",
+        "properties": {
+          "kind": {
+            "description": "Obligation kind, e.g. 'phala.belief_update'.",
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "obligation_endpoint": {
+            "description": "HTTPS URL where obligations of this kind are POSTed under custody.",
+            "title": "Obligation Endpoint",
+            "type": "string"
+          },
+          "deadline_seconds": {
+            "description": "AB-1 custody deadline for this kind.",
+            "exclusiveMinimum": 0,
+            "title": "Deadline Seconds",
+            "type": "integer"
+          },
+          "max_retries": {
+            "description": "AB-2 retransmission bound; MUST be large enough that the capped exponential backoff spans deadline_seconds (the deadline, not the retry count, is the binding terminator).",
+            "minimum": 0,
+            "title": "Max Retries",
+            "type": "integer"
+          },
+          "backoff": {
+            "default": "exponential",
+            "description": "Retry backoff strategy. Only 'exponential' is defined in v1.",
+            "title": "Backoff",
+            "type": "string"
+          },
+          "backoff_base_seconds": {
+            "default": 1.0,
+            "description": "Initial backoff interval.",
+            "exclusiveMinimum": 0,
+            "title": "Backoff Base Seconds",
+            "type": "number"
+          },
+          "backoff_cap_seconds": {
+            "description": "Backoff cap; kept below the deadline so several attempts fall within it.",
+            "exclusiveMinimum": 0,
+            "title": "Backoff Cap Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "obligation_endpoint",
+          "deadline_seconds",
+          "max_retries",
+          "backoff_cap_seconds"
+        ],
+        "title": "KindProfile",
+        "type": "object"
+      }
+    },
+    "description": "Abhyasa-specific fields contributed to an A2A AgentCard.\n\nValidators detect Abhyasa support by the presence of an entry in\n``capabilities.extensions[]`` whose ``uri`` equals ``ABHYASA_EXTENSION_URI``.\nThe body of that entry SHOULD deserialize to this model. The custody layer is\nadvertised once per agent: the agent-level ``custody_ack_endpoint`` plus one\n:class:`KindProfile` per governance kind carried under custody. Domain\nprotocols (Phala, Anumati, OAuth, ...) carry no custody fields of their own.",
+    "properties": {
+      "version": {
+        "description": "Abhyasa protocol semver this agent implements (e.g. '1.0.0').",
+        "title": "Version",
+        "type": "string"
+      },
+      "custody_ack_endpoint": {
+        "description": "Agent-level HTTPS URL where this agent (as custodian) receives asynchronous CustodyAcks for the deferred discharge path.",
+        "title": "Custody Ack Endpoint",
+        "type": "string"
+      },
+      "supported_kinds": {
+        "description": "Per-kind custody delivery profiles; one entry per governance kind this agent carries under custody.",
+        "items": {
+          "$ref": "#/$defs/KindProfile"
+        },
+        "minItems": 1,
+        "title": "Supported Kinds",
+        "type": "array"
+      }
+    },
+    "required": [
+      "version",
+      "custody_ack_endpoint",
+      "supported_kinds"
+    ],
+    "title": "AbhyasaServiceRef",
+    "type": "object"
+  },
+  "wire_artefacts": [],
+  "invariants": [
+    "AC-1: an obligation is admissible iff it declares a fail-safe polarity safe(O).",
+    "AB-1: an admissible obligation MUST be delivered under custody until applied/declined or deadline.",
+    "AB-2: on timeout the custodian MUST retry under bounded exponential backoff up to max_retries.",
+    "AB-3: a receiver MUST apply an obligation at most once, keyed on obligation_id.",
+    "AB-4: on deadline without applied/declined, execute safe(O) on principal-side state and escalate."
+  ]
+}

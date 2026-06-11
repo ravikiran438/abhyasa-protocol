@@ -1,0 +1,34 @@
+[project]
+name = "abhyasa"
+version = "0.1.0"
+description = "Abhyasa Protocol, custody transfer of governance obligations over unreliable agent channels"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Ravi Kiran Kadaboina" }]
+dependencies = [
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+mcp = [
+    "mcp>=1.0",
+]
+
+[project.scripts]
+abhyasa-mcp = "abhyasa.mcp_server.server:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+asyncio_mode = "auto"
