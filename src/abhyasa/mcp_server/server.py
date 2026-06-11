@@ -14,15 +14,9 @@
 
 """Main stdio MCP server for the Abhyasa reference implementation.
 
-MCP scaffolding portable across sibling protocol repos (phala, acap,
-sauvidya-pace). When copying this file, change only:
-
-  - SERVER_NAME, SERVER_VERSION, SERVER_INSTRUCTIONS
-  - the `from abhyasa.mcp_server.tools import ...` line
-
-The rest (build_server, _run, main, the two decorators, stdio plumbing)
-is deliberately generic so each repo stays independently installable
-without a shared package dependency.
+``build_server`` registers the tools from ``abhyasa.mcp_server.tools`` and
+serves them over stdio. Run the module with ``--doctor`` for a structural
+self-check of the tool registry (see ``run_doctor``).
 """
 
 from __future__ import annotations

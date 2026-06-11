@@ -15,9 +15,8 @@ delay-tolerant networking from opaque bundles to governance obligations, pairs
 at-least-once delivery with idempotent application (effectively-once), and adds
 a **principal-side fail-safe** that holds without a working reverse channel.
 
-This repository mirrors the structure and conventions of
-[`phala-protocol`](../phala-protocol): frozen Pydantic models with field-level
-bounds, runtime validators, an MCP stdio server, an A2A AgentCard extension
+The implementation provides frozen Pydantic models with field-level bounds,
+runtime validators, an MCP stdio server, an A2A AgentCard extension
 (`v1/manifest.json`), and a pytest conformance suite.
 
 ## Layout

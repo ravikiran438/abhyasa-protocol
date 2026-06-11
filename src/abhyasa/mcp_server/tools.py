@@ -37,9 +37,7 @@ from abhyasa.instantiations import default_registry
 from abhyasa.types import CustodyAck, CustodyStatus, Obligation
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Generic MCP glue — portable across sibling protocol repos.
-# Keep these four symbols (ToolInvocationError, _parse, _ok, _fail) in sync
-# by convention when copying to phala, acap, or sauvidya-pace.
+# Generic MCP glue: error type and JSON (de)serialization helpers.
 # ─────────────────────────────────────────────────────────────────────────────
 
 

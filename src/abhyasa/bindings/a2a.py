@@ -8,8 +8,7 @@ Discoverability. An agent advertises Abhyasa support by an entry in
 ``ABHYASA_EXTENSION_URI``. The body of that entry deserializes to
 :class:`AbhyasaServiceRef`, which tells a caller where to POST obligations,
 where custody acks are returned, and the custodian's deadline / retry profile.
-This mirrors phala-protocol's ``PhalaServiceRef`` and the ``v1/manifest.json``
-extension descriptor.
+The ``v1/manifest.json`` extension descriptor publishes the exact schema.
 
 Wire. :class:`A2AEndpoint` is an in-process stand-in for a remote A2A peer
 exposing ``POST /abhyasa/obligations``. It round-trips obligations and acks
