@@ -183,6 +183,38 @@ def test_unsuperseded_safe_action_still_applies(registry):
     assert principal_state.applied_sequences[scope] == 3
 
 
+def test_receiver_declines_stale_out_of_order_obligation(registry):
+    # Paper v1.1: the supersession guard is two-sided. O2 (sequence 2)
+    # arrives first; the delayed O1 (sequence 1) has a distinct
+    # obligation_id, so AB-3 dedup does not stop it -- the receiver-side
+    # sequence guard must, declining it as superseded.
+    receiver = Receiver("agent-c")
+    o2 = anumati_consent("cn-new").model_copy(update={"sequence": 2})
+    o1 = anumati_consent("cn-stale").model_copy(update={"sequence": 1})
+    assert receiver.deliver(o2).status is CustodyStatus.APPLIED
+    ack = receiver.deliver(o1)
+    assert ack.status is CustodyStatus.DECLINED
+    assert receiver.applied_count("cn-stale") == 0  # stale, never applied
+
+
+def test_two_sided_guard_composes_without_regression(registry):
+    # End to end: a stale obligation is declined by the receiver-side guard,
+    # and the custodian's default safe(O) on that decline is dropped by the
+    # principal-side guard. Neither side regresses the newer decision.
+    principal_state = PrincipalState()
+    scope = "calendar.write"
+    principal_state.apply_decision(scope, True, 2)  # newest decision: grant
+    receiver = Receiver("agent-c")
+    receiver.deliver(anumati_consent("cn-new").model_copy(update={"sequence": 2}))
+    channel = ScriptedChannel([Hop(delivered=True)])
+    out = _custodian(registry, channel, principal_state).transfer(
+        anumati_consent("cn-stale").model_copy(update={"sequence": 1}), receiver
+    )
+    assert out.terminal is TerminalState.DECLINED
+    assert principal_state.authorizations[scope] is True  # guard held
+    assert principal_state.escalations == []
+
+
 def test_stale_decision_cannot_overwrite_newer_one():
     # The principal's own decision path passes through the same guard, so
     # ordering is total per key no matter which path applies first.

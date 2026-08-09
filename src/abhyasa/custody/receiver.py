@@ -52,6 +52,10 @@ class Receiver:
         # deadline expiry. Paper v1.1 (S4): deadlines bind both sides.
         self.clock = clock
         self._expiry: Dict[str, float] = {}
+        # Receiver-side supersession guard (paper v1.1 S4): highest issuance
+        # sequence applied per governed key. AB-3 dedups by obligation_id and
+        # orders nothing between distinct obligations; this ledger does.
+        self._applied_sequences: Dict[str, int] = {}
         # AB-3 ledger of obligation_ids whose effect has been applied.
         self._applied: Set[str] = set()
         # Diagnostic counters for effectively-once assertions.
@@ -79,14 +83,38 @@ class Receiver:
             if self.clock.now >= expiry:
                 return self._ack(obligation, CustodyStatus.DECLINED)
 
+        if obligation.sequence is not None:
+            # Paper v1.1 (S4): the supersession guard is two-sided. An
+            # obligation whose sequence is lower than the newest applied on
+            # the same governed key is stale (out-of-order delivery or a
+            # late retry) and MUST NOT be applied; it is declined with
+            # superseded as the reason. The custodian's default safe(O) for
+            # that decline is dropped by the principal-side guard in turn.
+            key = self._governed_key(obligation)
+            if self._applied_sequences.get(key, -1) >= obligation.sequence:
+                return self._ack(obligation, CustodyStatus.DECLINED)
+
         decision = self._decide(obligation)
         if decision is CustodyStatus.APPLIED:
             self._apply_once(obligation)
             self._applied.add(oid)
+            if obligation.sequence is not None:
+                self._applied_sequences[self._governed_key(obligation)] = (
+                    obligation.sequence
+                )
             return self._ack(obligation, CustodyStatus.APPLIED)
         if decision is CustodyStatus.DECLINED:
             return self._ack(obligation, CustodyStatus.DECLINED)
         return self._ack(obligation, CustodyStatus.DEFERRED)
+
+    @staticmethod
+    def _governed_key(obligation: Obligation) -> str:
+        """The per-key axis of the supersession guard (paper v1.1 S4)."""
+        return str(
+            obligation.payload.get("scope")
+            or obligation.payload.get("weight_key")
+            or obligation.target
+        )
 
     def applied_count(self, obligation_id: str) -> int:
         """How many times the effect was actually applied (must be <= 1)."""

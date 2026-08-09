@@ -190,6 +190,17 @@ first. Phala's additive weight deltas are commutative and unguarded by
 design. Covered by `test_superseded_safe_action_does_not_regress_newer_decision`
 and companions.
 
+The guard is two-sided. AB-3's idempotency is keyed on `obligation_id` and
+orders nothing between distinct obligations, so out-of-order delivery (or a
+stale obligation's late retry landing after its successor) could apply an
+older decision over a newer one at the receiver. The receiver therefore
+records the highest sequence applied per governed key and declines a
+lower-sequence arrival as superseded; the custodian's default `safe(O)` on
+that decline carries the stale sequence and is dropped by the principal-side
+guard, so neither side regresses. Covered by
+`test_receiver_declines_stale_out_of_order_obligation` and
+`test_two_sided_guard_composes_without_regression`.
+
 **Acknowledgments are not session state (MCP).** The deferred-ack push
 notification is a latency optimization, not the delivery mechanism. The
 receiver persists obligation status in the ledger AB-3 already requires, and
