@@ -171,19 +171,35 @@ rather than by an aborted local step.
 
 ## Paper v1.1 alignment
 
-Five clarifications land in the paper's arXiv revision (v1.1); the reference
+Seven clarifications land in the paper's arXiv revision (v1.1); the reference
 implementation aligns as follows.
 
 **`safe(O)` on `declined`.** v1.0 discharged custody on a decline with no
 principal-side protection: the receiver accountably kept the last authority
 it saw, and the principal's exposure matched a lost delivery, only visibly
-so. v1.1 states that a decline discharges delivery, not protection: the
-custodian SHOULD apply `safe(O)` on `declined`, without the escalation AB-4
-emits, since the decline itself is the accountable record. Where `safe(O)`
-already stands (a fail-closed withhold applied unconditionally at decision
-time, as in Anumati), the re-assertion is idempotent. Implemented in
+so. v1.1 makes this normative as a disjunction: the custodian MUST NOT treat
+a decline as equivalent to `applied` — it MUST either apply `safe(O)` (the
+default) or surface the decline, with the receiver's stated reason, for an
+explicit principal decision. No AB-4 escalation either way; the decline
+itself is the accountable record. The discretion exists because a receiver
+may decline precisely when the obligation is moot (superseded, expired,
+inapplicable), where an automatic state change would be wrong; ignoring the
+decline is what is never permitted. Where `safe(O)` already stands (a
+fail-closed withhold applied unconditionally at decision time, as in
+Anumati), the default path is an idempotent re-assertion. Implemented in
 `custody/machine.py`; `test_declined_applies_safe_action_without_escalation`
 covers it.
+
+**Deadlines bind both sides.** A receiver MUST NOT apply an obligation whose
+deadline has passed: an expired pending or deferred obligation is declined
+with expiry as the reason, which closes the race in which a slow receiver
+applies after the custodian has escalated and run the fail-safe. A late
+`applied` that arrives anyway (clock skew, an ack in flight at expiry) is
+logged for reconciliation, and the combined state — fail-safe on the
+principal side, obligation applied on the receiver side — errs on the
+restrictive side by the polarity admissibility requires, so the race is
+bounded to over-protection. `Receiver` takes an optional logical clock and
+enforces expiry; `test_receiver_declines_expired_obligation` covers it.
 
 **Deferred acknowledgments.** `deferred` extends neither the deadline nor the
 retry budget; the custodian keeps retrying under AB-2, and a receiver crash
@@ -204,6 +220,13 @@ by content — a revocation, a policy replacement, or a weight clamp sets state
 rather than incrementing it — and for obligations that are neither, the
 receiver SHOULD record a durable intent before executing the effect, so a
 redelivery resumes a known in-doubt effect rather than re-executing blindly.
+An intent record narrows the doubt but does not resolve it: on recovery the
+receiver settles it by querying the external system where queryable, and
+otherwise MUST surface the in-doubt effect for reconciliation rather than
+silently choosing a side. Effectively-once is therefore claimed only under
+one of the three declared conditions (receiver-owned state, honored
+idempotency key, set-semantic obligation); outside them custody still
+guarantees delivery is never silently lost, and no more.
 The reference `Receiver` models the receiver-owned case; the intent-record
 pattern is deliberately left to integrations, which own the external systems.
 
@@ -218,3 +241,13 @@ treated as restrictive, since custody of a restriction is the safe default.
 **`max_retries` sizing.** The paper's AB-2 now states the sizing rule the
 `KindProfile` validator has enforced all along: retries must span the
 deadline, so the deadline — not the retry count — is the binding terminator.
+
+**Envelope-before-request ordering (MCP).** A server that supports Abhyasa
+MUST process the custody envelope in `params._meta` before executing the
+request that carries it, so a tool call never runs under authority the
+obligation it carries has just withdrawn. A server that does not support
+Abhyasa ignores `_meta` and never acknowledges — which is safe rather than
+silent: custody is discharged only by an explicit `CustodyAck`, so the
+transfer runs its AB-2 schedule into the AB-4 fail-safe, and
+deliver-or-report holds against a receiver that does not speak the protocol
+at all. Binding-level; no change to the transport-agnostic core.

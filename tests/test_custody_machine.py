@@ -118,6 +118,25 @@ def test_declined_applies_safe_action_without_escalation(registry):
     assert principal_state.escalations == []
 
 
+def test_receiver_declines_expired_obligation(registry):
+    # Paper v1.1: deadlines bind both sides. A receiver holding a deferred
+    # obligation past its deadline declines it (expiry as the reason) instead
+    # of applying late, after the custodian has escalated and run safe(O).
+    from abhyasa.custody import Clock
+
+    clock = Clock()
+    receiver = Receiver(
+        "agent-b", lambda _o: CustodyStatus.DEFERRED, clock=clock
+    )
+    obligation = corrective_phala("bu-late")
+    ack = receiver.deliver(obligation)
+    assert ack.status is CustodyStatus.DEFERRED
+    clock.advance(obligation.deadline_seconds + 1)
+    late = receiver.deliver(obligation)
+    assert late.status is CustodyStatus.DECLINED
+    assert receiver.applied_count("bu-late") == 0  # never applied late
+
+
 def test_persistent_defer_escalates(registry):
     # A receiver that always defers never discharges -> deadline -> escalate.
     principal_state = PrincipalState()

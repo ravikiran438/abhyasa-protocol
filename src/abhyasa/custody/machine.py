@@ -175,11 +175,11 @@ class Custodian:
                 )
             if ack is not None and ack.status is CustodyStatus.DECLINED:
                 # Paper v1.1 (S4): a decline discharges delivery, not
-                # protection. The receiver holds the obligation and will not
-                # apply it, so for a corrective obligation the principal's
-                # exposure matches a lost delivery, only visibly so. safe(O)
-                # SHOULD apply on declined, without the escalation -- the
-                # decline itself is the accountable record. Where safe(O)
+                # protection. The custodian MUST NOT treat a decline as
+                # equivalent to applied: it MUST either apply safe(O) (the
+                # default, implemented here) or surface the decline for an
+                # explicit principal decision. No AB-4 escalation either way;
+                # the decline itself is the accountable record. Where safe(O)
                 # already stands (a fail-closed withhold), this re-assertion
                 # is idempotent.
                 self.principal_state.apply(self.registry.safe(obligation))

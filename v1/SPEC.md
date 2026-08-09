@@ -67,10 +67,17 @@ POST /abhyasa/custody_ack    Body: CustodyAck               → 204
 discharge custody; `deferred` retains it — the custodian continues retrying
 under AB-2 (deferral extends neither the deadline nor the retry budget, and
 the backoff schedule continues unchanged; resetting it for a reachable
-receiver would invite a retry storm). On `declined` the custodian SHOULD
-apply `safe(O)` to principal-side state without emitting an escalation: a
-decline discharges delivery, not protection, and the decline itself is the
-accountable record. Idempotency is keyed on
+receiver would invite a retry storm). A decline discharges delivery, not
+protection: the custodian MUST NOT treat `declined` as equivalent to
+`applied` — it MUST either apply `safe(O)` to principal-side state (the
+default) or surface the decline, with the receiver's stated reason, for an
+explicit principal decision; no escalation is emitted either way, since the
+decline itself is the accountable record. Deadlines bind both sides: a
+receiver MUST NOT apply an obligation whose deadline has passed — an expired
+pending or deferred obligation is discarded and acknowledged `declined` with
+expiry as the reason, and a late `applied` that arrives after escalation is
+logged for principal-side reconciliation, never a reopened terminal state.
+Idempotency is keyed on
 `obligation_id` (AB-3): a redelivered obligation already applied is re-acked
 `applied` without reapplication.
 

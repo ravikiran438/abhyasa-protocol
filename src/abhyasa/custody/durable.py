@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -49,9 +50,19 @@ class CrashSignal(Exception):
 
 
 def _atomic_write_json(path: Path, data: dict) -> None:
-    """Write ``data`` to ``path`` atomically (temp file + rename)."""
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    """Write ``data`` to ``path`` atomically (unique temp file + rename).
+
+    The temp name carries the pid and a random token so concurrent writers
+    to the same store cannot collide on the temp file; the last ``os.replace``
+    wins, which is the correct last-writer-wins semantics for a whole-file
+    store. The file is fsynced before the rename so the rename never
+    publishes a partially written store after a crash.
+    """
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(json.dumps(data, indent=2, sort_keys=True))
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(tmp, path)
 
 

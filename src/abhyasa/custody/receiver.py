@@ -43,10 +43,15 @@ class Receiver:
         decide: Optional[DecisionFn] = None,
         *,
         clock_fn: Callable[[], str] = _now_iso,
+        clock=None,
     ) -> None:
         self.agent_id = agent_id
         self._decide: DecisionFn = decide or (lambda _o: CustodyStatus.APPLIED)
         self._clock_fn = clock_fn
+        # Optional logical clock (machine.Clock) enabling receiver-side
+        # deadline expiry. Paper v1.1 (S4): deadlines bind both sides.
+        self.clock = clock
+        self._expiry: Dict[str, float] = {}
         # AB-3 ledger of obligation_ids whose effect has been applied.
         self._applied: Set[str] = set()
         # Diagnostic counters for effectively-once assertions.
@@ -60,6 +65,19 @@ class Receiver:
         if oid in self._applied:
             # AB-3: already applied — ack applied, do NOT reapply the effect.
             return self._ack(obligation, CustodyStatus.APPLIED)
+
+        if self.clock is not None:
+            # Paper v1.1 (S4): a receiver MUST NOT apply an obligation whose
+            # deadline has passed. Expiry is anchored at first sight (first
+            # delivery coincides with issue on the shared logical clock); an
+            # expired pending/deferred obligation is declined with expiry as
+            # the reason, closing the race in which a slow receiver applies
+            # after the custodian has escalated and run the fail-safe.
+            expiry = self._expiry.setdefault(
+                oid, self.clock.now + obligation.deadline_seconds
+            )
+            if self.clock.now >= expiry:
+                return self._ack(obligation, CustodyStatus.DECLINED)
 
         decision = self._decide(obligation)
         if decision is CustodyStatus.APPLIED:
