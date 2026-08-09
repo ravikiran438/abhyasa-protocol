@@ -56,7 +56,7 @@ def reinforcing_phala(obligation_id: str = "bu-2", delta: float = 0.3) -> Obliga
 
 
 def anumati_consent(obligation_id: str = "cn-1") -> Obligation:
-    """A binary Anumati consent obligation (always admissible).
+    """A binary Anumati consent revocation (admissible; paper v1.1 §5).
 
     max_retries (16) likewise exceeds the ~12 attempts the capped backoff needs
     to span the 1 h deadline, so the deadline is the binding terminator.
@@ -66,6 +66,23 @@ def anumati_consent(obligation_id: str = "cn-1") -> Obligation:
         kind="anumati.consent",
         target="agent-c",
         payload={"decision": "revoke", "scope": "calendar.write"},
+        deadline_seconds=3600,
+        max_retries=16,
+        created_at="2026-06-09T10:00:00+00:00",
+    )
+
+
+def anumati_grant(obligation_id: str = "cn-2") -> Obligation:
+    """A consent *grant*: inadmissible under AC-1 (paper v1.1 §5).
+
+    Its loss is the benign default — the agent simply lacks the authority and
+    re-requests — so it travels best-effort, like OAuth token issuance.
+    """
+    return Obligation(
+        obligation_id=obligation_id,
+        kind="anumati.consent",
+        target="agent-c",
+        payload={"decision": "grant", "scope": "calendar.write"},
         deadline_seconds=3600,
         max_retries=16,
         created_at="2026-06-09T10:00:00+00:00",

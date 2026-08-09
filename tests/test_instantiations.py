@@ -14,7 +14,12 @@ from abhyasa.custody import (
     TerminalState,
 )
 from abhyasa.instantiations import is_corrective
-from tests.conftest import anumati_consent, corrective_phala, reinforcing_phala
+from tests.conftest import (
+    anumati_consent,
+    anumati_grant,
+    corrective_phala,
+    reinforcing_phala,
+)
 
 
 def test_phala_classification_by_sign():
@@ -69,3 +74,29 @@ def test_phala_reinforcing_is_never_under_custody(registry):
     assert out.terminal is TerminalState.BEST_EFFORT
     assert principal_state.routing_weights == {}
     assert principal_state.escalations == []
+
+
+def test_anumati_grant_is_best_effort(registry):
+    # Paper v1.1 (§5): a grant's loss is the benign default, so it is
+    # inadmissible under AC-1 — best-effort, no custody, no escalation,
+    # and no principal-side fail-safe.
+    principal_state = PrincipalState()
+    receiver = Receiver("agent-c")
+    channel = ScriptedChannel([Hop(delivered=False)])  # dropped, no retry
+    out = Custodian(
+        registry=registry, principal_state=principal_state, channel=channel
+    ).transfer(anumati_grant(), receiver)
+    assert out.terminal is TerminalState.BEST_EFFORT
+    assert principal_state.authorizations == {}
+    assert principal_state.escalations == []
+
+
+def test_anumati_revocation_remains_admissible(registry):
+    # The restrictive side keeps custody: same kind, opposite decision.
+    principal_state = PrincipalState()
+    receiver = Receiver("agent-c")
+    out = Custodian(
+        registry=registry, principal_state=principal_state,
+        channel=ScriptedChannel([]),
+    ).transfer(anumati_consent(), receiver)
+    assert out.terminal is TerminalState.ESCALATED

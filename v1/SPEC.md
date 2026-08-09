@@ -19,15 +19,36 @@ A Abhyasa-capable agent publishes one entry in
   "description": "Abhyasa custody transfer of governance obligations (deliver-or-report).",
   "params": {
     "version": "1.0.0",
-    "obligation_endpoint": "https://agent-b.example.com/abhyasa/obligations",
     "custody_ack_endpoint": "https://orchestrator.example.com/abhyasa/custody_ack",
-    "deadline_seconds": 86400,
-    "max_retries": 6,
-    "backoff": "exponential",
-    "supported_kinds": ["anumati.consent", "phala.belief_update"]
+    "supported_kinds": [
+      {
+        "kind": "anumati.consent",
+        "obligation_endpoint": "https://agent-b.example.com/abhyasa/obligations",
+        "deadline_seconds": 3600,
+        "max_retries": 16,
+        "backoff": "exponential",
+        "backoff_base_seconds": 1.0,
+        "backoff_cap_seconds": 600
+      },
+      {
+        "kind": "phala.belief_update",
+        "obligation_endpoint": "https://agent-b.example.com/abhyasa/obligations",
+        "deadline_seconds": 86400,
+        "max_retries": 48,
+        "backoff": "exponential",
+        "backoff_base_seconds": 1.0,
+        "backoff_cap_seconds": 3600
+      }
+    ]
   }
 }
 ```
+
+Custody is advertised once per agent (the `custody_ack_endpoint`) with one
+`KindProfile` per governance kind carried under custody; each kind tunes its
+own deadline and retry budget, and `max_retries` MUST be large enough that the
+capped backoff spans `deadline_seconds` (the deadline, not the retry count, is
+the binding terminator — the schema validator rejects incoherent profiles).
 
 The `params` object is an `AbhyasaServiceRef`; `manifest.json` carries its full
 JSON Schema (`agent_card_payload_schema`).
@@ -43,7 +64,9 @@ POST /abhyasa/custody_ack    Body: CustodyAck               → 204
 ```
 
 `CustodyAck.status ∈ {applied, declined, deferred}`. `applied` and `declined`
-discharge custody; `deferred` retains it. Idempotency is keyed on
+discharge custody; `deferred` retains it — the custodian continues retrying
+under AB-2 (deferral extends neither the deadline nor the retry budget, and
+MAY reset the backoff interval, since the receiver is reachable). Idempotency is keyed on
 `obligation_id` (AB-3): a redelivered obligation already applied is re-acked
 `applied` without reapplication.
 

@@ -175,7 +175,14 @@ class Custodian:
                     ack=ack,
                 )
             if ack is not None and ack.status is CustodyStatus.DEFERRED:
-                last_error = "receiver deferred; custody retained"
+                # Paper v1.1 (S4): deferred extends neither the deadline nor
+                # the retry budget, and the backoff schedule continues
+                # unchanged -- resetting it for a reachable receiver would
+                # invite a retry storm that exhausts the budget prematurely.
+                # What deferred changes is the custodian's knowledge: the
+                # escalation reports a responsive-but-stuck receiver rather
+                # than an unreachable one.
+                last_error = "receiver responsive but deferring; custody retained"
             else:
                 last_error = "delivery or acknowledgment lost on channel"
             self.clock.advance(

@@ -167,3 +167,43 @@ AB-1's durable pending set is the *transactional-outbox* pattern (Richardson,
 *compensating transaction* in the sense of Sagas (Garcia-Molina & Salem, 1987),
 differing in that it is triggered by non-confirmation over an unreliable channel
 rather than by an aborted local step.
+
+
+## Paper v1.1 alignment
+
+Four clarifications land in the paper's arXiv revision (v1.1); the reference
+implementation aligns as follows.
+
+**Deferred acknowledgments.** `deferred` extends neither the deadline nor the
+retry budget; the custodian keeps retrying under AB-2, and a receiver crash
+while deferring is handled by redelivery plus AB-3 idempotency. What
+`deferred` changes is the custodian's knowledge: the escalation records a
+responsive-but-stuck receiver ("receiver responsive but deferring") rather
+than an unreachable one. The backoff schedule continues unchanged on
+`deferred` — resetting it for a reachable receiver would invite a retry storm
+that exhausts the retry budget prematurely and escalates while the receiver
+is still processing.
+
+**The dual-write boundary of AB-3.** The atomic-commit requirement is exact
+where the effect is state the receiver owns. Where the effect is external and
+non-transactional (a remote API call, a tool execution), the
+`obligation_id` doubles as an idempotency key the receiver MUST propagate to
+the external system. Most governance obligations are additionally idempotent
+by content — a revocation, a policy replacement, or a weight clamp sets state
+rather than incrementing it — and for obligations that are neither, the
+receiver SHOULD record a durable intent before executing the effect, so a
+redelivery resumes a known in-doubt effect rather than re-executing blindly.
+The reference `Receiver` models the receiver-owned case; the intent-record
+pattern is deliberately left to integrations, which own the external systems.
+
+**Consent grants are inadmissible (correction).** v1.0 classified Anumati as
+admissible as a whole. Under AC-1 this was inconsistent with the treatment of
+OAuth token issuance: a grant's loss is the benign default (the agent lacks
+authority, cannot act, and re-requests), so grants travel best-effort while
+revocations and other restrictive decisions remain under custody. Implemented
+in `instantiations/anumati.py`; obligations that do not state a decision are
+treated as restrictive, since custody of a restriction is the safe default.
+
+**`max_retries` sizing.** The paper's AB-2 now states the sizing rule the
+`KindProfile` validator has enforced all along: retries must span the
+deadline, so the deadline — not the retry count — is the binding terminator.

@@ -3,11 +3,14 @@
 
 """Anumati instantiation: binary consent, fail-closed (paper §5).
 
-Anumati exercises the *binary* polarity axis. A consent obligation — a grant or
-a revocation — is always Abhyasa-admissible: its fail-safe default is to
-withhold the action (fail-closed). An unconfirmed grant must not be treated as
-granted; an unconfirmed revocation must not be treated as still-authorized.
-Both collapse to the same safe state: deny.
+Anumati exercises the *binary* polarity axis, and admissibility is
+per-instance (paper v1.1): a revocation is admissible because its loss leaves
+an agent acting on withdrawn authority, while a consent *grant* is
+inadmissible for the same reason as OAuth token issuance — its loss is the
+benign default (the agent simply lacks the authority, cannot act, and its
+next request surfaces the gap), so grants travel best-effort. For admissible
+obligations the fail-safe default is to withhold the action (fail-closed): an
+unconfirmed revocation must not be treated as still-authorized.
 """
 
 from __future__ import annotations
@@ -19,9 +22,13 @@ from abhyasa.types.safe_action import SafeAction, SafeEffect
 ANUMATI_KIND = "anumati.consent"
 
 
-def _admissible(_obligation: Obligation) -> bool:
-    # Every consent obligation declares a fail-safe polarity (deny). AC-1 holds.
-    return True
+def _admissible(obligation: Obligation) -> bool:
+    # Per-instance admissibility (paper v1.1, §5): revocations and other
+    # restrictive decisions are admissible; a grant's loss is benign, so it
+    # is inadmissible and travels best-effort. An obligation that does not
+    # state its decision is treated as restrictive — custody of a
+    # restriction is the safe default.
+    return obligation.payload.get("decision", "revoke") != "grant"
 
 
 def _safe(obligation: Obligation) -> SafeAction:
