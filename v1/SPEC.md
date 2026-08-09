@@ -66,7 +66,11 @@ POST /abhyasa/custody_ack    Body: CustodyAck               → 204
 `CustodyAck.status ∈ {applied, declined, deferred}`. `applied` and `declined`
 discharge custody; `deferred` retains it — the custodian continues retrying
 under AB-2 (deferral extends neither the deadline nor the retry budget, and
-MAY reset the backoff interval, since the receiver is reachable). Idempotency is keyed on
+the backoff schedule continues unchanged; resetting it for a reachable
+receiver would invite a retry storm). On `declined` the custodian SHOULD
+apply `safe(O)` to principal-side state without emitting an escalation: a
+decline discharges delivery, not protection, and the decline itself is the
+accountable record. Idempotency is keyed on
 `obligation_id` (AB-3): a redelivered obligation already applied is re-acked
 `applied` without reapplication.
 

@@ -101,6 +101,23 @@ def test_declined_is_a_delivered_outcome_not_escalation(registry):
     assert principal_state.escalations == []
 
 
+def test_declined_applies_safe_action_without_escalation(registry):
+    # Paper v1.1: a decline discharges delivery, not protection. safe(O)
+    # applies on the principal side, but no escalation is emitted -- the
+    # decline itself is the accountable record.
+    principal_state = PrincipalState()
+    receiver = Receiver("agent-b", lambda _o: CustodyStatus.DECLINED)
+    channel = ScriptedChannel([Hop(delivered=True)])
+    out = _custodian(registry, channel, principal_state).transfer(
+        corrective_phala("bu-declined", delta=-0.4), receiver
+    )
+    assert out.terminal is TerminalState.DECLINED
+    # safe(O): principal-side routing weight decreased, as on AB-4.
+    assert principal_state.routing_weights["routing.agent_b.preference"] == -0.4
+    # But unlike AB-4, no escalation: the outcome is delivered and logged.
+    assert principal_state.escalations == []
+
+
 def test_persistent_defer_escalates(registry):
     # A receiver that always defers never discharges -> deadline -> escalate.
     principal_state = PrincipalState()

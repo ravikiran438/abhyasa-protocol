@@ -171,8 +171,19 @@ rather than by an aborted local step.
 
 ## Paper v1.1 alignment
 
-Four clarifications land in the paper's arXiv revision (v1.1); the reference
+Five clarifications land in the paper's arXiv revision (v1.1); the reference
 implementation aligns as follows.
+
+**`safe(O)` on `declined`.** v1.0 discharged custody on a decline with no
+principal-side protection: the receiver accountably kept the last authority
+it saw, and the principal's exposure matched a lost delivery, only visibly
+so. v1.1 states that a decline discharges delivery, not protection: the
+custodian SHOULD apply `safe(O)` on `declined`, without the escalation AB-4
+emits, since the decline itself is the accountable record. Where `safe(O)`
+already stands (a fail-closed withhold applied unconditionally at decision
+time, as in Anumati), the re-assertion is idempotent. Implemented in
+`custody/machine.py`; `test_declined_applies_safe_action_without_escalation`
+covers it.
 
 **Deferred acknowledgments.** `deferred` extends neither the deadline nor the
 retry budget; the custodian keeps retrying under AB-2, and a receiver crash

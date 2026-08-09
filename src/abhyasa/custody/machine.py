@@ -16,7 +16,9 @@ to exactly one terminal state:
                       escalation.
 
 Deliver-or-report (guarantee): every admissible obligation terminates as
-APPLIED, DECLINED, or ESCALATED — never silent loss.
+APPLIED, DECLINED, or ESCALATED — never silent loss. On DECLINED the
+custodian applies safe(O) without an escalation (paper v1.1): a decline
+discharges delivery, not protection.
 
 Inadmissible obligations (AC-1 false — e.g. a reinforcing Phala update) are
 delivered best-effort: a single attempt, no custody, no fail-safe.
@@ -163,14 +165,28 @@ class Custodian:
         while self.clock.now < deadline and attempt <= obligation.max_retries:
             attempt += 1
             ack = self.channel.round_trip(obligation, endpoint)
-            if ack is not None and ack.status in (
-                CustodyStatus.APPLIED,
-                CustodyStatus.DECLINED,
-            ):
+            if ack is not None and ack.status is CustodyStatus.APPLIED:
                 return CustodyOutcome(
                     obligation_id=obligation.obligation_id,
                     target=obligation.target,
-                    terminal=TerminalState(ack.status.value),
+                    terminal=TerminalState.APPLIED,
+                    attempts=attempt,
+                    ack=ack,
+                )
+            if ack is not None and ack.status is CustodyStatus.DECLINED:
+                # Paper v1.1 (S4): a decline discharges delivery, not
+                # protection. The receiver holds the obligation and will not
+                # apply it, so for a corrective obligation the principal's
+                # exposure matches a lost delivery, only visibly so. safe(O)
+                # SHOULD apply on declined, without the escalation -- the
+                # decline itself is the accountable record. Where safe(O)
+                # already stands (a fail-closed withhold), this re-assertion
+                # is idempotent.
+                self.principal_state.apply(self.registry.safe(obligation))
+                return CustodyOutcome(
+                    obligation_id=obligation.obligation_id,
+                    target=obligation.target,
+                    terminal=TerminalState.DECLINED,
                     attempts=attempt,
                     ack=ack,
                 )
