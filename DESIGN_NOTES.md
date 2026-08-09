@@ -171,8 +171,32 @@ rather than by an aborted local step.
 
 ## Paper v1.1 alignment
 
-Seven clarifications land in the paper's arXiv revision (v1.1); the reference
+These clarifications land in the paper's arXiv revision (v1.1); the reference
 implementation aligns as follows.
+
+**Supersession guard.** `safe(O)` is a pure function of the obligation, but
+its application is not unconditional: a revocation can time out after the
+principal has issued a later decision on the same governed key, and blindly
+applying the older obligation's fail-safe would regress principal-side state
+past the principal's own newer decision. Principal-side application is
+therefore last-writer-wins per governed key: obligations over set-semantic
+state carry an issuance `sequence` (optional on the wire; guard skipped when
+absent), `PrincipalState` records the highest sequence applied per key, and
+a lower-sequence action applies nothing while the escalation still fires —
+deliver-or-report is about the loss being reported, not a stale action being
+applied. The principal's own decisions (`apply_decision`) pass through the
+same guard, so per-key ordering is total regardless of which path applies
+first. Phala's additive weight deltas are commutative and unguarded by
+design. Covered by `test_superseded_safe_action_does_not_regress_newer_decision`
+and companions.
+
+**Acknowledgments are not session state (MCP).** The deferred-ack push
+notification is a latency optimization, not the delivery mechanism. The
+receiver persists obligation status in the ledger AB-3 already requires, and
+the custodian's AB-2 schedule recovers the ack on whatever session exists
+next (redelivery or status query, both keyed on `obligation_id`). The
+identifier that spans sessions is the `obligation_id`; no session
+reassociation protocol exists or is needed.
 
 **`safe(O)` on `declined`.** v1.0 discharged custody on a decline with no
 principal-side protection: the receiver accountably kept the last authority

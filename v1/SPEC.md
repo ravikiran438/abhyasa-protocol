@@ -88,6 +88,12 @@ Idempotency is keyed on
 - **AB-2** on timeout, retry under bounded exponential backoff up to `max_retries`.
 - **AB-3** apply at most once, keyed on `obligation_id`.
 - **AB-4** on deadline without applied/declined, execute `safe(O)` on principal-side state and escalate.
+- **Supersession guard** principal-side application is last-writer-wins per
+  governed key: obligations over set-semantic state carry an issuance
+  `sequence`, and an action (fail-safe or decision) whose sequence is lower
+  than the newest applied on the same key MUST apply nothing — the
+  escalation still fires, reporting the loss without regressing newer state.
+  Additive, commutative effects (Phala weight deltas) need no guard.
 
 Inadmissible obligations (unknown kind, or the benign-loss side of a signed
 polarity such as a reinforcing Phala update) travel best-effort, not under

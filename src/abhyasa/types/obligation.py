@@ -12,7 +12,7 @@ obligation under custody until it is applied, declined, or escalated.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -77,4 +77,17 @@ class Obligation(BaseModel):
     created_at: str = Field(
         ...,
         description="ISO 8601 timestamp at which the obligation was issued.",
+    )
+    sequence: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Per-key issuance sequence for the supersession guard (paper v1.1 "
+            "S4). Principal-side application is last-writer-wins per governed "
+            "key: a timed-out obligation's safe(O) whose sequence is lower "
+            "than the newest applied decision on the same key applies "
+            "nothing (the escalation still fires). Needed only for "
+            "set-semantic state; additive, commutative effects (Phala weight "
+            "deltas) are order-independent and need no guard."
+        ),
     )

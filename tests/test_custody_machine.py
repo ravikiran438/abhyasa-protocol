@@ -16,7 +16,7 @@ from abhyasa.custody import (
 )
 from abhyasa.custody.channel import LossyChannel, ChannelConfig
 from abhyasa.types import CustodyStatus
-from tests.conftest import corrective_phala, reinforcing_phala
+from tests.conftest import anumati_consent, corrective_phala, reinforcing_phala
 
 
 def _custodian(registry, channel, principal_state=None):
@@ -146,6 +146,50 @@ def test_persistent_defer_escalates(registry):
         corrective_phala(), receiver
     )
     assert out.terminal is TerminalState.ESCALATED
+
+
+def test_superseded_safe_action_does_not_regress_newer_decision(registry):
+    # Paper v1.1 (supersession guard): a revocation issued at sequence 1
+    # times out AFTER the principal has re-granted the same scope at
+    # sequence 2. safe(O1) must apply nothing -- last-writer-wins per key --
+    # while the escalation still reports the loss (deliver-or-report).
+    principal_state = PrincipalState()
+    scope = "calendar.write"
+    revocation = anumati_consent("cn-old").model_copy(update={"sequence": 1})
+    principal_state.apply_decision(scope, False, 1)  # withhold at issue time
+    principal_state.apply_decision(scope, True, 2)   # later re-grant
+    receiver = Receiver("agent-c")
+    channel = ScriptedChannel([])  # total loss -> deadline -> AB-4
+    out = _custodian(registry, channel, principal_state).transfer(
+        revocation, receiver
+    )
+    assert out.terminal is TerminalState.ESCALATED
+    assert len(principal_state.escalations) == 1  # loss still reported
+    assert principal_state.authorizations[scope] is True  # no regression
+
+
+def test_unsuperseded_safe_action_still_applies(registry):
+    # Without a newer decision on the key, the guarded fail-safe applies
+    # normally: the withhold lands and the escalation fires.
+    principal_state = PrincipalState()
+    scope = "calendar.write"
+    revocation = anumati_consent("cn-cur").model_copy(update={"sequence": 3})
+    channel = ScriptedChannel([])
+    out = _custodian(registry, channel, principal_state).transfer(
+        revocation, Receiver("agent-c")
+    )
+    assert out.terminal is TerminalState.ESCALATED
+    assert principal_state.authorizations[scope] is False
+    assert principal_state.applied_sequences[scope] == 3
+
+
+def test_stale_decision_cannot_overwrite_newer_one():
+    # The principal's own decision path passes through the same guard, so
+    # ordering is total per key no matter which path applies first.
+    principal_state = PrincipalState()
+    principal_state.apply_decision("s", True, 5)
+    principal_state.apply_decision("s", False, 4)  # stale; must not apply
+    assert principal_state.authorizations["s"] is True
 
 
 def test_reinforcing_obligation_is_best_effort(registry):

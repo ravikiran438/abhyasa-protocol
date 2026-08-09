@@ -59,3 +59,12 @@ class SafeAction(BaseModel):
         ...,
         description="Human-readable justification recorded with the escalation.",
     )
+    sequence: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Issuance sequence carried from the obligation for the "
+            "supersession guard (paper v1.1 S4): principal-side application "
+            "is last-writer-wins per governed key."
+        ),
+    )

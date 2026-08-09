@@ -42,6 +42,10 @@ def _safe(obligation: Obligation) -> SafeAction:
             "Anumati: an unconfirmed consent decision defaults fail-closed — "
             "withhold authority for the scope until the decision is confirmed."
         ),
+        # Supersession guard (paper v1.1 S4): consent state is set-semantic,
+        # so safe(O) carries the obligation's issuance sequence and applies
+        # last-writer-wins per scope on the principal side.
+        sequence=obligation.sequence,
     )
 
 
